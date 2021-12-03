@@ -1,0 +1,642 @@
+## RenderTarget
+
+![image-20210603004903551](https://i.loli.net/2021/06/23/lNYu8eSX5Ti7aRV.png)
+
+## Workflow
+
+![image-20210627143150895](https://i.loli.net/2021/06/27/4tNHhJIzCnsPTp1.png)
+
+![image-20210602000238651](https://i.loli.net/2021/06/23/IMh4miv9PoJct8W.png)
+
+![image-20210602000323859](https://i.loli.net/2021/06/23/i7pDFbfoPk5ZsTN.png)
+
+
+
+## PBR
+
+PBR:Physical Based Rendering
+
+What is that?
+
+Most of the material pipeline is based on PBR.
+
+Responsible for shading through authoring :
+
+- the Roughness
+- Specular
+- Metallic material attributes
+
+Notice:
+
+- Just an approximation of what light does.
+
+Why PBR is used for nearly everything?
+
+- Efficiency.Just focus on PRR.
+- Art pipeline can be predictable.
+- Conquer the inherent restrictions due to  the  GBuffer and workflow.
+
+
+
+Use:
+
+Full Metallic then Specular does nothing.
+
+Check the lists of the number.
+
+
+
+How do we prepare for getting into PBR.
+
+![image-20210602010912142](https://i.loli.net/2021/06/02/SlzPH9rnuobeJFt.png)
+
+New to PBR, just  focus on the Roughness.
+
+A easy example:
+
+![image-20210602011511182](https://i.loli.net/2021/06/02/CtXl5bSTqwy9Yo1.png)
+
+![image-20210602011543063](https://i.loli.net/2021/06/02/T1x9EAspZ6gmCVF.png)
+
+
+
+## Texture
+
+![image-20210602171358410](https://i.loli.net/2021/06/02/zK9DQds8OVH7x2R.png)
+
+
+
+### Texture Streaming Pool:
+
+What：UE引擎会在**计算机内存中预留空间存放纹理**。Texture budget会被存入内存中。
+
+Why：合理设置纹理池大小以保证渲染效果。当纹理池设置过小，UE会使用**lower resoultion mipmap**,这会导致贴图质量下降。
+
+How to control:控制台中键入
+
+```
+r.Streaming.PoolSize num  //单位mb，default设置为2000.
+```
+
+如果设置过小，会出现如下提示：
+
+![image-20210602172842574](https://i.loli.net/2021/06/02/SUlAr8oNC14zMKJ.png)
+
+单个项目的设置：在项目目录下config/DefaultEngine.ini，找到RendererSettings里的纹理池。
+
+![image-20210602173424539](https://i.loli.net/2021/06/02/ZTVxBEdq5OA3zwi.png)
+
+根据不同的设备，我们可以选择不同纹理池大小定制化。
+
+------
+
+
+
+### Mipmaps:
+
+What：纹理映射技术之一。产生： 每次取原分辨率的二分之一图像，故使用Mipmaps技术后纹理会变大。
+
+![image-20210602173740449](https://i.loli.net/2021/06/02/GTUOZwXSdAIa75J.png)
+
+Why：
+
+噪声：近处使用高分辨的纹理，远处如果仍使用原纹理，那么会产生采样噪声。使用mipmaps技术，根据摄像机与空间的距离，用不同分辨率的纹理贴图表现。
+
+![image-20210602173856501](https://i.loli.net/2021/06/02/9M7H4IRBSXUZeai.png)
+
+
+
+Notice：
+
+- 使用Mipmaps的材质贴图，尺寸必须为2的幂，不同数字组合也可。
+- 大小不为2的幂，则该纹理不会使用Mipmaps技术。
+- UI材质大小可以不是2的幂。因为UI与距离无关。
+
+How：
+
+- 打开材质面板。
+- ![image-20210602180110078](https://i.loli.net/2021/06/02/KTtHlWI6fPEqioY.png)
+- Mip Gen Setting：
+- LOD Bias（LOD偏差）：0为原始贴图。可设置为不同层数以得到不同分辨率的贴图。
+- Texture Group（材质分组）：将材质分组，有效管理与控制在不同平台下的表现。
+
+------
+
+
+
+### Texture Group
+
+为纹理设置所属Group后，在主界面：
+
+Window/Develop Tools/Device Profiles/Texture LODGroups对不同平台进行LOD设置预设值。
+
+![image-20210602181047507](https://i.loli.net/2021/06/02/B6NijRyxd87S1GX.png)
+
+------
+
+
+
+### Mergemap：
+
+What：将多张图像储存在不同通道中。
+
+![](https://i.loli.net/2021/06/02/WyBa7bknA328tJe.png)
+
+Why：UE中，材质采样（Texture Sample）最高只能达到16，且有3个已被占用。为了解决限制，使用多通道组合方式。
+
+Notice：
+
+- alpha通道如果没有储存数据，那么RGB通道里图像会进一步压缩。
+- alpha通道是未压缩的，花费很高。
+
+
+
+### Filter：
+
+纹理面板下找到Filter：
+
+![image-20210602190958914](https://i.loli.net/2021/06/02/X8Fj4ARwfbd37Tk.png)
+
+What:
+
+Filter,纹理映射过滤。
+
+Nearest：点采样。效果差，易出现明显的像素点。
+
+Bi-linear：双线性采样。采用u和v坐标作为权重。效果不错，实际运用较多。
+
+Tri-linear: 三线性纹理采样。使用Bi-linear和Mipmaps实现。获取Mipmaps的bias值，并在相邻bias之间使用双线性采样进一步得到更精确的采样值和平滑效果。缺点是消耗巨大，不过效果最好。
+
+具体实现算法请另看Mipmaps采样实现。
+
+
+
+## Material Domains
+
+![image-20210602235806115](https://i.loli.net/2021/06/23/sVKgzBmS18nFrO5.png)
+
+## Material inputs（材质输入）：
+
+用处：
+
+- 自发光
+- 置换和视差
+- 世界场景位置偏移
+- 像素深度偏移
+
+如何控制：
+
+- ![image-20210623155459163](https://i.loli.net/2021/06/23/dGYycJDfpa23nAV.png)
+- 改变选项以禁用某些输入
+
+
+
+自发光：
+
+特性：自发光的输入上限不会被钳制到1。当自发光数值越强，则产生光晕越强。自发光不会对周围环境产生影响。
+
+实现：通常在材质通道中的B通道，用蒙版。
+
+
+
+世界场景位置偏移：
+
+用于草丛树木的运动效果。
+
+![image-20210623163038161](https://i.loli.net/2021/06/23/ZGMJnoYljsWchVS.png)
+
+一个关于Y顶点偏移的连连看。vertex color用于控制运动部位。
+
+<img src="https://i.loli.net/2021/06/23/ezYfoWws9PBGq4F.png" alt="image-20210623163527519" style="zoom:50%;" />
+
+水面：通过噪声偏移Z方向。
+
+![image-20210623192408727](https://i.loli.net/2021/06/23/RXULeEvKl6kCfjc.png)
+
+草互动：使用旋转轴。
+
+
+
+像素深度偏移：
+
+用于视差贴图或头发处理。
+
+![image-20210623194809322](https://i.loli.net/2021/06/23/hk9OfEwyuYBXglU.png)
+
+## shading model(光照模式)
+
+为什么要选择不同的光照模式：通过禁用某些选项达到优化的效果。
+
+![image-20210625111053982](https://i.loli.net/2021/06/25/nbvsmuwytDTVSNU.png)
+
+Unit(无光照)：
+
+适用于：仅自发光的材质。去除PBR渲染。
+
+
+
+Subsurface（次表面模型）：
+
+![image-20210625164044255](https://i.loli.net/2021/06/25/EoCUMzhB7bwAyW3.png)
+
+次表面散射(Sub-Surface-Scattering)简称3S，光在物体内部散射后进入人的视野。光线最终会在物体中弥散，产生一种透亮的感觉。
+
+适用于：人的皮肤，玉石，大理石，蜡烛等一些半透明材质。
+
+
+
+Subsurface Profile（次表面轮廓）：
+
+看法：非常适用于复原原画中对应的涂抹手法。
+
+差异：Subsurface Profile实现与Subsurface有区别。前者运用了Screen Space，即屏幕图像处理的方法进行模糊，以此达到次表面散射的效果。其通过调节Scatter Radius（散射半径）进行图像偏移以此模糊图像。
+
+
+
+Two Sided Foliage(双面植被)：
+
+选用该选项会启用Opacity和Subsurface Color输入。双面渲染时要勾选Two Sided选项以关闭backface culling。
+
+
+
+Clear Coat(透明图层)：
+
+采用双法线贴图实现复杂的效果，如塑料包装，车表面抛光。
+
+附加材质法线输入节点：
+
+![image-20210625180810016](https://i.loli.net/2021/06/25/C2ZW5LmUtgxbwuG.png)
+
+开启并传递第二参数：
+
+![image-20210625191129315](https://i.loli.net/2021/06/25/p3yXAZQeioFmdT5.png)
+
+
+
+##  Blend Mode（混合模式）：
+
+Blend Mode 是用于处理 Translucency 的，实时渲染中对透明物体的渲染十分困难，并且将会占用大量性能，因此要施加一定的限制。
+
+### 半透明（Translucency）：
+
+
+
+Translucency with lit：
+
+带光照的半透明模式。
+
+------
+
+Translucency with unlit:
+
+由于半透明材质极难显示反射，因此为了节省开销并达到同样的效果，可以设为unlit模式，在此模式下，Base Color将会被禁用，指令数量下降。
+
+
+
+![image-20210625230102573](https://i.loli.net/2021/06/25/GiM9Owqt2zgFKxI.png)
+
+左边是unlit，开销更小。右边是lit，开销更大。
+
+------
+
+Translucency with advanced lit
+
+在半透明混合模式下调节下列选项可获得更高级的效果。
+
+![image-20210625230604523](https://i.loli.net/2021/06/25/ukAD7ZGFXrsz6Uo.png)
+
+Screen Space Reflections:屏幕空间反射，实现部分反射。
+
+Lighting Mode:
+
+![image-20210625230737721](https://i.loli.net/2021/06/25/EQcCnNRT6raiLBl.png)
+
+- Volumetric NonDirectional:体积非定向。
+- 从上至下，开销逐渐增大。
+- Surface ForwardShading:表面正向着色。
+- ![image-20210625231641123](https://i.loli.net/2021/06/25/rAVFfL6oSDckxXW.png)
+- r.TranslucencyLightingVolumeDim,可调节渲染目标曲面细分，默认位64
+
+Apply Fogging：![image-20210625234050044](https://i.loli.net/2021/06/25/LHDCPeN9VOi2rpU.png)
+
+勾选，会雾化。
+
+
+
+Apply Cloud Fogging：
+
+![image-20210625234141946](https://i.loli.net/2021/06/25/QWCjshBpYMeIVzy.png)
+
+勾选，半透明材质会考虑云作为部分雾化的估计，若雾是基于云层的，务必选择此选项。
+
+
+
+Compute Fog Per Pixel:
+
+![image-20210625234446091](https://i.loli.net/2021/06/25/FsKx6PdrUqo3p1k.png)
+
+勾选，每像素雾化计算，效果更好。
+
+
+
+Render After DOF:
+
+![image-20210625234716756](https://i.loli.net/2021/06/25/3XzsMYkuP6N42lD.png)
+
+勾选，会在景深计算后渲染。
+
+ DOF：Degree of Freedom（自由度）
+
+![image-20210626011348636](https://i.loli.net/2021/06/26/3VPJykLIC8Dhlun.png)
+
+弥散圆：焦点前后所成影像形成的圆叫弥散圆。弥散圆若直径过小，人眼不能识别，这样的弥散圆叫容许弥散圆(permissible circle of confusion)。
+
+![image-20210626011839410](https://i.loli.net/2021/06/26/HPmSLwbt13VJayG.png)
+
+景深：焦点前后两个容许弥散圆之间的距离叫景深。这一段距离是拍摄物体显示清晰的范围。
+
+
+
+Disable Depth Test：
+
+勾选后会关闭深度测试，这时物体将会一直被渲染。
+
+![image-20210625235131155](https://i.loli.net/2021/06/25/HJFIxkBMmq9ZAYv.png)
+
+------
+
+
+
+### 遮罩（Masked）：
+
+
+
+选择Masked，Opacity Mask将会启用。
+
+植物通常作为不透明物体渲染，且在实时渲染中其Mesh通常为面片，植物以外的部分作半透明处理，因此需要做遮罩处理。
+
+![image-20210626003534897](https://i.loli.net/2021/06/26/CvGrTfJelxIhmKu.png)
+
+一个简单的遮罩图。黑色部分仍旧渲染并占用性能，但适用遮罩整体渲染速度快。
+
+
+
+![image-20210626003827326](https://i.loli.net/2021/06/26/S1MUr5X8Cbstml3.png)
+
+使用不规则面片，以减少植物周围的空白空间量。
+
+
+
+### Translucency -Dithered（抖动半透明）：
+
+
+
+在Blend Mode 中选择 Masked后，添加如下节点。
+
+抖动临时抗锯齿：![image-20210626004645876](https://i.loli.net/2021/06/26/IoXFe4ZD2dhRvMP.png)做为透明遮罩的输入。
+
+该节点作用与实现半透明效果相同，但是会产生视觉瑕疵，原因是其通过渲染不透明和透明像素并混合实现的。
+
+![image-20210626005528190](https://i.loli.net/2021/06/26/cwprfDEyvOTu9tG.png)
+
+------
+
+
+
+### Translucency -Additive and Modulate（添加或调制半透明）：
+
+Shading Model 需选择Unlit。
+
+Additive模式下，相当于在顶层再添加一层颜色。
+
+![image-20210626010628242](https://i.loli.net/2021/06/26/QM8u7IqJFknNPpf.png)
+
+Modulate模式下，仅保留较暗的部分，而较亮的不会考虑。可用于污渍、泥土或爆炸痕迹。
+
+![image-20210626010654002](https://i.loli.net/2021/06/26/Re13mzwrkjF5B9I.png)
+
+
+
+------
+
+折射（Refraction）：
+
+Ⅰ.勾选Translucent 与Unlit选项后，对输入Refraction有
+
+![image-20210626151854009](https://i.loli.net/2021/06/26/uQTIPnkq42Sj5Hl.png)
+
+边缘部分为0.8，中间部分为1.
+
+Ⅱ.依法线折射。同上勾选。当传入Refraction为常数时，Normal选项会启用，这时整个物体折射率为该常数。
+
+![image-20210626152801064](https://i.loli.net/2021/06/26/zpkgt7oYq8BhCxc.png)
+
+常用折射输入：
+
+![image-20210626152907561](https://i.loli.net/2021/06/26/Oj47yi2TGH5L1uE.png)
+
+有时折射会在特定地方出现问题，这时可以试着调节如下选项：
+
+![image-20210626153200789](https://i.loli.net/2021/06/26/A4g9V1ueKvrjBRp.png)
+
+index of Refraction:不适用于大的折射表面如水。
+
+Pixel Normal Offset：根据逐像素法线和逐顶点法线之间的差异计算进入场景颜色的折射偏移量。法线（0，0，1）不会引起折射。该模式为非物理折射模型，但适用于折射较大表面。
+
+------
+
+### 总结：
+
+![image-20210626154052985](https://i.loli.net/2021/06/26/pq19xvUGPXftiLg.png)
+
+
+
+------
+
+
+
+## Material Domain（材质域）：
+
+
+
+### Post Process：
+
+勾选Post Process选项。
+
+![image-20210626160248820](https://i.loli.net/2021/06/26/bCxoJINP5iaSXqu.png)
+
+两个重要输入节点：
+
+Scene Depth：屏幕深度，常用来作为权值进行雾化。
+
+SceneTexture：有很多选项，其中PostProcessInput0等会拦截当前渲染后输出。
+
+两个重要功能节点：
+
+![image-20210626161019790](https://i.loli.net/2021/06/26/VWgJx9wDLN6F43U.png)
+
+微分对偏移的像素值使用，可以得到右侧和下侧的像素颜色值。
+
+
+
+![image-20210626162824656](https://i.loli.net/2021/06/26/K5zH3iarGspoBml.png)
+
+Distance：计算两个constant的欧式距离。
+
+HLSL:float Result = sqrt (dot (A-B, A-B))
+
+
+
+## Material Instances：
+
+材质实例作用：随时更改参数值，对工作流程具有优化和协作功能。。少材质球，多材质实例，但有时为了不影响其它材质实例，需要选用或创建其它材质球。
+
+材质实例通过降低shader生成数量以降低shader开销。
+
+太多switch也会增加开销，因此一个材质球不必做的面面俱到。
+
+材质实例也可以反复嵌套。
+
+
+
+创建一个材质实例：直接在原材质球上创建，该实例会以此材质球为父材质。
+
+
+
+关卡蓝图下对参数的改变。
+
+![image-20210626231131845](https://i.loli.net/2021/06/26/b1Yd4y8XriP7fKL.png)
+
+
+
+材质面板中的用于控制开关的节点：
+
+![image-20210626231215300](C:\Users\pc\AppData\Roaming\Typora\typora-user-images\image-20210626231215300.png)
+
+
+
+## Material Functions：
+
+
+
+用于用户创建的表达式，本制就是整合的带有输入和输出函数，即蓝色节点。
+
+一个简单示例：
+
+![image-20210626233129501](https://i.loli.net/2021/06/26/vVlTiKfcp52LHIg.png)
+
+Sort Priority：排序优先级。
+
+Scalar：与constant一致。
+
+![image-20210626233140424](https://i.loli.net/2021/06/26/nTu8G5FfjYIDxN4.png)
+
+
+
+## Material Layers
+
+
+
+材质图层实现很像unity中的shader脚本。
+
+材质函数变体，与function不同，材质图层将整个材质变成一种函数，这样的函数就叫材质图层。
+
+它的用处主要在将几个材质重新组合成一个新的材质。
+
+
+
+## Material Parameter Collections
+
+材质参数集
+
+![image-20210627002131172](https://i.loli.net/2021/06/27/tXKb9yYrseVvkJ4.png)
+
+可以在里面设置一些参数，通过游戏逻辑传参或自定义参数值后，加入到材质面板中并可选择其中的参数作为输入。
+
+![image-20210627002321191](C:\Users\pc\AppData\Roaming\Typora\typora-user-images\image-20210627002321191.png)
+
+
+
+## Additional Features
+
+
+
+![image-20210627143438998](https://i.loli.net/2021/06/27/mlHeKOSZFMNzCLg.png)
+
+
+
+### Particle Materials
+
+
+
+### Custom UVs and Vertex Interpolators
+
+
+
+
+
+### Blurring
+
+![image-20210627152954715](https://i.loli.net/2021/06/27/XPpweTqYZiOGVBI.png)
+
+原理：通过图像偏移并调整透明度实现模糊。
+
+![image-20210627153026880](https://i.loli.net/2021/06/27/dNEqWmtnUzcXkAb.png)
+
+### Black Body and Emissive Light Casting
+
+
+
+![image-20210627153310636](https://i.loli.net/2021/06/27/3pMsJoSj67OaFtV.png)
+
+### 
+
+
+
+
+
+## Material Advanced
+
+
+
+处理平铺：
+
+若直接采样纹理输出BaseColor，当物体放大时，纹理也会线性放大，而我们想要纹理仍按照原大小显示，可用如下方法。
+
+![image-20210627164950813](https://i.loli.net/2021/06/27/C2dUbXhTzLo3EFP.png)
+
+Object Radius：输出一个与所给模型相等的半径，当缩放时，也会给出相应结果。
+
+与一个Parm相除，可以控制纹理比例大小。
+
+
+
+世界场景对齐纹理：正确投射在模型上
+
+![image-20210627171018729](https://i.loli.net/2021/06/27/D4tyWj6iKHYzp7w.png)
+
+
+
+
+
+草地：
+
+草地噪声处理。
+
+![image-20210627191726700](https://i.loli.net/2021/06/27/rUbxOC9WRv6oaXm.png)
+
+一个风对植物偏移与player交互。
+
+![image-20210627185308588](https://i.loli.net/2021/06/27/iDcFMqh6OT4foQA.png)
+
+
+
+
+
+
+
+## Import
+
+项目文件导入，通常会在指定文件夹内导入模型等文件，引擎会自动识别。
+
+![image-20210627185716176](https://i.loli.net/2021/06/27/NpwGhWmTdO7VA1C.png)
